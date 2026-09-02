@@ -121,88 +121,116 @@ function createMonthly_(u,b) {
 
 function printForm1_(u,id) {
   require_(u,['ADMIN','OFFICER','APPROVER']);
-  const lock=LockService.getScriptLock(); lock.waitLock(30000);
-  try {
-    const c=rows_('คำขอเบิก').find(x=>String(x.claim_id)===String(id));
-    if(!c) throw Error('ไม่พบคำขอ');
-    const p=rows_('บุคลากร').find(x=>String(x.person_id)===String(c.person_id));
-    if(!p) throw Error('ไม่พบข้อมูลบุคลากร');
-    fillForm1_(sheet_('Print_แบบ1'),c,p);
-    SpreadsheetApp.flush();
-    const pdf=exportPdf_(sheet_('Print_แบบ1'),58,'แบบคำขอ_'+safeName_(id)+'.pdf');
-    audit_(u.name,'PRINT_PDF','CLAIM',id);
-    return pdf;
-  } finally { lock.releaseLock(); }
+  const c=rows_('คำขอเบิก').find(x=>String(x.claim_id)===String(id));
+  if(!c) throw Error('ไม่พบคำขอ');
+  const p=rows_('บุคลากร').find(x=>String(x.person_id)===String(c.person_id));
+  if(!p) throw Error('ไม่พบข้อมูลบุคลากร');
+  const pdf=makeSlidesPdf_(PROP.getProperty('PRINT_FORM1_SLIDES_ID'),form1Values_(c,p),'แบบคำขอ_'+safeName_(id)+'.pdf');
+  audit_(u.name,'PRINT_PDF','CLAIM',id);
+  return pdf;
 }
 
 function printForm11_(u,id) {
   require_(u,['ADMIN','OFFICER','APPROVER']);
-  const lock=LockService.getScriptLock(); lock.waitLock(30000);
-  try {
-    const m=rows_('ฉ11รายเดือน').find(x=>String(x.monthly_id)===String(id));
-    if(!m) throw Error('ไม่พบรายการ ฉ.11');
-    const p=rows_('บุคลากร').find(x=>String(x.person_id)===String(m.person_id));
-    if(!p) throw Error('ไม่พบข้อมูลบุคลากร');
-    const h=rows_('ประวัติการปฏิบัติงาน').filter(x=>String(x.person_id)===String(m.person_id)).slice(0,6);
-    fillForm11_(sheet_('Print_ฉ11'),m,p,h);
-    SpreadsheetApp.flush();
-    const pdf=exportPdf_(sheet_('Print_ฉ11'),27,'ฉ11_'+safeName_(id)+'.pdf');
-    audit_(u.name,'PRINT_PDF','MONTHLY',id);
-    return pdf;
-  } finally { lock.releaseLock(); }
+  const m=rows_('ฉ11รายเดือน').find(x=>String(x.monthly_id)===String(id));
+  if(!m) throw Error('ไม่พบรายการ ฉ.11');
+  const p=rows_('บุคลากร').find(x=>String(x.person_id)===String(m.person_id));
+  if(!p) throw Error('ไม่พบข้อมูลบุคลากร');
+  const h=rows_('ประวัติการปฏิบัติงาน').filter(x=>String(x.person_id)===String(m.person_id)).slice(0,6);
+  const pdf=makeSlidesPdf_(PROP.getProperty('PRINT_FORM11_SLIDES_ID'),form11Values_(m,p,h),'ฉ11_'+safeName_(id)+'.pdf');
+  audit_(u.name,'PRINT_PDF','MONTHLY',id);
+  return pdf;
 }
 
-function fillForm1_(sh,c,p) {
+function form1Values_(c,p) {
   const name=[p['คำนำหน้า'],p['ชื่อ'],p['นามสกุล']].filter(Boolean).join(' ');
-  const serviceDuration=duration_(c['วันที่เริ่มสิทธิ']||p['วันที่เริ่มรับราชการ'],c['วันที่สิ้นสุดสิทธิ']||new Date());
-  sh.getRange('J4').setValue(p['หน่วยบริการปัจจุบัน']||'');
-  sh.getRange('J5').setValue(thaiDate_(c['วันที่ยื่น']||new Date()));
-  sh.getRange('A8').setValue('ข้าพเจ้า '+name+'  ตำแหน่ง '+v_(p.ตำแหน่ง));
-  sh.getRange('A9').setValue('ระดับ '+v_(p.ระดับ)+'  อายุราชการ '+serviceDuration.years+' ปี  สังกัดสำนัก/กอง '+v_(p['สำนัก/กอง']));
-  sh.getRange('A10').setValue('ปัจจุบันปฏิบัติงานในหน่วยบริการสาธารณสุข '+v_(p['หน่วยบริการปัจจุบัน']));
-  sh.getRange('A11').setValue('หมู่ที่ '+v_(p['หมู่ที่'])+' ตำบล '+v_(p.ตำบล)+' อำเภอ '+v_(p.อำเภอ)+' จังหวัด '+v_(p.จังหวัด));
-  sh.getRange('A12').setValue('ตั้งแต่วันที่ '+thaiDate_(c['วันที่เริ่มสิทธิ'])+' ถึงวันที่ '+thaiDate_(c['วันที่สิ้นสุดสิทธิ'])+' รวมระยะเวลา '+serviceDuration.years+' ปี '+serviceDuration.months+' เดือน '+serviceDuration.days+' วัน');
-  sh.getRange('A13').setValue('ที่อยู่ปัจจุบัน บ้านเลขที่ '+v_(p['บ้านเลขที่'])+' หมู่ '+v_(p['หมู่ที่(ที่อยู่)'])+' ถนน '+v_(p.ถนน)+' ตำบล '+v_(p['ตำบล(ที่อยู่)'])+' อำเภอ '+v_(p['อำเภอ(ที่อยู่)'])+' จังหวัด '+v_(p['จังหวัด(ที่อยู่)'])+' '+v_(p['รหัสไปรษณีย์']));
+  const serviceDuration=duration_(p['วันที่เริ่มรับราชการ'],c['วันที่ยื่น']||new Date());
+  const claimDuration=duration_(c['วันที่เริ่มสิทธิ'],c['วันที่สิ้นสุดสิทธิ']);
+  const filed=thaiParts_(c['วันที่ยื่น']||new Date());
+  const values={
+    '«1»':v_(p['หน่วยบริการปัจจุบัน']),'«2»':filed.day,'«3»':filed.month,'«4»':filed.year,
+    '«5»':name,'«6»':v_(p.ตำแหน่ง),'«7»':v_(p.ระดับ),'«8»':String(serviceDuration.years),'«9»':v_(p['สำนัก/กอง']),
+    '«10»':v_(p['หน่วยบริการปัจจุบัน']),'«11»':v_(p['หมู่ที่']),'«12»':v_(p.ตำบล),'«13»':v_(p.อำเภอ),'«14»':v_(p.จังหวัด),
+    '«15»':thaiDate_(c['วันที่เริ่มสิทธิ']),'«16»':thaiDate_(c['วันที่สิ้นสุดสิทธิ']),'«17»':durationText_(claimDuration),
+    '«18»':v_(p['บ้านเลขที่']),'«19»':v_(p.ถนน),'«20»':v_(p['ตำบล(ที่อยู่)']),'«21»':v_(p['อำเภอ(ที่อยู่)']),'«22»':v_(p['จังหวัด(ที่อยู่)']),'«23»':v_(p['รหัสไปรษณีย์']),
+    '«24»':v_(p['เลขใบอนุญาต']),'«25»':'-',
+    '«45»':thaiDate_(c['วันที่เริ่มสิทธิ']),'«46»':thaiDate_(c['วันที่สิ้นสุดสิทธิ']),'«47»':durationText_(claimDuration),
+    '«48»':money_(c['อัตราต่อเดือน']),'«49»':money_(c['จำนวนเงิน']),'«50»':bahtText_(Number(c['จำนวนเงิน']||0)),
+    '«5»':name,'«6»':v_(p.ตำแหน่ง)
+  };
   const licenses=['ใบอนุญาตประกอบโรคศิลปะ','ใบอนุญาตประกอบวิชาชีพเวชกรรม','ใบอนุญาตประกอบวิชาชีพทันตกรรม','ใบอนุญาตประกอบวิชาชีพเภสัชกรรม','ใบอนุญาตประกอบวิชาชีพการพยาบาลและการผดุงครรภ์','ใบอนุญาตผู้ประกอบวิชาชีพการแพทย์แผนไทย/ประยุกต์','เทคนิคการแพทย์','กายภาพบำบัด'];
   const lt=String(p['ประเภทใบอนุญาต']||'');
-  sh.getRange('A15').setValue(mark_(lt,licenses[0])+' '+licenses[0]+'     '+mark_(lt,licenses[1])+' '+licenses[1]+'     '+mark_(lt,licenses[2])+' '+licenses[2]);
-  sh.getRange('A16').setValue(mark_(lt,licenses[3])+' '+licenses[3]+'     '+mark_(lt,licenses[4])+' '+licenses[4]);
-  sh.getRange('A17').setValue(mark_(lt,'แพทย์แผนไทย')+' '+licenses[5]+'     '+mark_(lt,licenses[6])+' '+licenses[6]+'     '+mark_(lt,licenses[7])+' '+licenses[7]);
-  sh.getRange('A18').setValue((lt&&!licenses.some(x=>lt.indexOf(x)>=0)?'☒':'☐')+' ใบอนุญาตอื่น ๆ ระบุ '+v_(lt)+'     '+(!lt?'☒':'☐')+' ไม่มีใบอนุญาตประกอบวิชาชีพ');
-  sh.getRange('A19').setValue('เลขที่ใบอนุญาต '+v_(p['เลขใบอนุญาต']));
-  const cats=['ค่าตอบแทนในการปฏิบัติงานของเจ้าหน้าที่','ค่าตอบแทนการปฏิบัติงานในคลินิกพิเศษนอกเวลาราชการ','ค่าตอบแทนในการปฏิบัติงานเวรหรือผลัดบ่ายหรือผลัดดึกของพยาบาล','ค่าตอบแทนในการปฏิบัติงานชันสูตรพลิกศพ','ค่าตอบแทนพิเศษสำหรับแพทย์สาขาส่งเสริมพิเศษ','ค่าตอบแทนเงินเพิ่มพิเศษสำหรับแพทย์ ทันตแพทย์ และเภสัชกร ที่ปฏิบัติงานโดยไม่ทำเวชปฏิบัติส่วนตัว','ค่าตอบแทนในการปฏิบัติงานด้านการสร้างเสริมสุขภาพและเวชปฏิบัติครอบครัว','ค่าเบี้ยเลี้ยงเหมาจ่ายสำหรับเจ้าหน้าที่ที่ปฏิบัติงานในหน่วยบริการสาธารณสุข','ค่าตอบแทนอื่น ๆ'];
-  cats.forEach((x,i)=>sh.getRange(22+i,1).setValue(mark_(String(c['ประเภทค่าตอบแทน']||''),x)+' ('+thaiNum_(i+1)+') '+x+(i===8?' ระบุ '+v_(c['ประเภทค่าตอบแทน']):'')));
-  sh.getRange('A31').setValue('ระยะเวลาที่ขอรับ ตั้งแต่ '+thaiDate_(c['วันที่เริ่มสิทธิ'])+' ถึง '+thaiDate_(c['วันที่สิ้นสุดสิทธิ'])+' จำนวน '+v_(c['จำนวนเดือน'])+' เดือน');
-  sh.getRange('A32').setValue('อัตราเดือนละ '+money_(c['อัตราต่อเดือน'])+' บาท × '+v_(c['จำนวนเดือน'])+' เดือน รวมเป็นเงิน '+money_(c['จำนวนเงิน'])+' บาท');
-  sh.getRange('A33').setFormula('="จำนวนเงินตัวอักษร "&BAHTTEXT('+Number(c['จำนวนเงิน']||0)+')');
-  sh.getRange('G39').setValue('('+name+')'); sh.getRange('G40').setValue('ตำแหน่ง '+v_(p.ตำแหน่ง));
+  for(let i=1;i<=10;i++) values['«'+(25+i)+'»']='';
+  const licenseIndex=licenses.findIndex(x=>lt.indexOf(x)>=0);
+  if(!lt) values['«35»']='✓'; else if(licenseIndex>=0) values['«'+(26+licenseIndex)+'»']='✓'; else values['«34»']='✓';
+  const cats=['ค่าตอบแทนในการปฏิบัติงานของเจ้าหน้าที่','คลินิกพิเศษนอกเวลาราชการ','เวรหรือผลัดบ่ายหรือผลัดดึก','ชันสูตรพลิกศพ','แพทย์สาขาส่งเสริมพิเศษ','เงินเพิ่มพิเศษสำหรับแพทย์','สร้างเสริมสุขภาพและเวชปฏิบัติครอบครัว','เบี้ยเลี้ยงเหมาจ่าย'];
+  const type=String(c['ประเภทค่าตอบแทน']||''),catIndex=cats.findIndex(x=>type.indexOf(x)>=0);
+  for(let i=1;i<=9;i++) values['«'+(35+i)+'»']='';
+  values['«'+(36+(catIndex>=0?catIndex:8))+'»']='✓';
+  const aps=approverMap_();
+  values['«51»']=aps.supervisor.name; values['«52»']=aps.supervisor.position;
+  values['«53»']=aps.head.name; values['«54»']=aps.head.position;
+  values['«55»']=aps.check.name; values['«56»']=aps.pay.name;
+  values['«57»']=aps.approver.name; values['«58»']=aps.approver.position;
+  return values;
 }
 
-function fillForm11_(sh,m,p,h) {
+function form11Values_(m,p,h) {
   const name=[p['คำนำหน้า'],p['ชื่อ'],p['นามสกุล']].filter(Boolean).join(' ');
   const end=m['วันที่สิ้นเดือน']||new Date();
   const first=h.length?h.map(x=>date_(x['วันที่เริ่ม'])).filter(Boolean).sort((a,b)=>a-b)[0]:date_(p['วันที่เริ่มรับราชการ']);
   const total=duration_(first,end);
-  sh.getRange('A4').setValue('หน่วยบริการ '+v_(p['หน่วยบริการปัจจุบัน']));
-  sh.getRange('A5').setValue('ประจำเดือน '+v_(m['เดือน'])+' พ.ศ. '+v_(m['ปีงบประมาณ']));
-  sh.getRange('A7').setValue('ชื่อ '+v_(p['ชื่อ'])+'  นามสกุล '+v_(p['นามสกุล'])+'  ตำแหน่ง '+v_(p.ตำแหน่ง));
-  sh.getRange('A8').setValue('ปัจจุบันปฏิบัติงานที่ '+v_(p['หน่วยบริการปัจจุบัน'])+'  จังหวัด '+v_(p.จังหวัด));
-  sh.getRange('A9').setValue('ระดับ/กลุ่มพื้นที่ '+v_(p['กลุ่มพื้นที่'])+'  ระยะเวลาปฏิบัติงาน ณ หน่วยบริการ '+total.years+' ปี '+total.months+' เดือน');
+  const values={'«1»':v_(p['หน่วยบริการปัจจุบัน']),'«2»':v_(m['เดือน']),'«3»':v_(m['ปีงบประมาณ']),'«4»':v_(p['ชื่อ']),'«5»':v_(p['นามสกุล']),'«6»':v_(p.ตำแหน่ง),'«7»':v_(p['หน่วยบริการปัจจุบัน']),'«8»':v_(p.จังหวัด),'«9»':v_(p['กลุ่มพื้นที่']),'«10»':String(total.years),'«11»':String(total.months)};
   for(let i=0;i<6;i++){
-    const r=13+i, x=h[i]||{};
-    sh.getRange(r,2).setValue(v_(x['หน่วยบริการ'])); sh.getRange(r,6).setValue(v_(x.จังหวัด)); sh.getRange(r,8).setValue(v_(x['ระดับพื้นที่']));
-    sh.getRange(r,9).setValue(thaiDate_(x['วันที่เริ่ม'])); sh.getRange(r,11).setValue(thaiDate_(x['วันที่สิ้นสุด']));
+    const x=h[i]||{},d=duration_(x['วันที่เริ่ม'],x['วันที่สิ้นสุด']||end),base=12+i*6;
+    values['«'+base+'»']=x['หน่วยบริการ']||''; values['«'+(base+1)+'»']=x.จังหวัด||''; values['«'+(base+2)+'»']=x['ระดับพื้นที่']||'';
+    values['«'+(base+3)+'»']=x['วันที่เริ่ม']?thaiDate_(x['วันที่เริ่ม']):''; values['«'+(base+4)+'»']=x['วันที่สิ้นสุด']?thaiDate_(x['วันที่สิ้นสุด']):''; values['«'+(base+5)+'»']=x['วันที่เริ่ม']?durationText_(d):'';
   }
-  sh.getRange('A20').setValue('รวม '+total.years+' ปี '+total.months+' เดือน '+total.days+' วัน');
-  sh.getRange('G25').setValue('('+name+')'); sh.getRange('G26').setValue('ตำแหน่ง '+v_(p.ตำแหน่ง)); sh.getRange('G27').setValue('วันที่ '+thaiDate_(new Date()));
+  values['«48»']=String(total.years); values['«49»']=String(total.months); values['«50»']=String(total.days); values['«51»']=name;
+  return values;
 }
 
-function exportPdf_(sh,lastRow,fileName) {
-  const ss=sh.getParent();
-  const url='https://docs.google.com/spreadsheets/d/'+ss.getId()+'/export?format=pdf&gid='+sh.getSheetId()+'&size=A4&portrait=true&fitw=true&sheetnames=false&printtitle=false&pagenumbers=false&gridlines=false&fzr=false&top_margin=0.30&bottom_margin=0.30&left_margin=0.35&right_margin=0.35&r1=0&c1=0&r2='+lastRow+'&c2=11';
-  const res=UrlFetchApp.fetch(url,{headers:{Authorization:'Bearer '+ScriptApp.getOAuthToken()},muteHttpExceptions:true});
-  if(res.getResponseCode()!==200) throw Error('สร้าง PDF ไม่สำเร็จ HTTP '+res.getResponseCode());
-  return {fileName:fileName,mimeType:'application/pdf',dataBase64:Utilities.base64Encode(res.getBlob().getBytes())};
+function makeSlidesPdf_(templateId,values,fileName) {
+  if(!templateId) throw Error('ยังไม่ได้ตั้งค่าแม่แบบพิมพ์ กรุณารัน setupOriginalPrintTemplatesOnce');
+  let temp;
+  try {
+    temp=DriveApp.getFileById(templateId).makeCopy('_TEMP_PRINT_'+Utilities.getUuid());
+    const deck=SlidesApp.openById(temp.getId());
+    Object.keys(values).forEach(k=>deck.replaceAllText(k,String(values[k]===undefined?'':values[k])));
+    deck.saveAndClose();
+    const url='https://docs.google.com/presentation/d/'+temp.getId()+'/export/pdf';
+    const res=UrlFetchApp.fetch(url,{headers:{Authorization:'Bearer '+ScriptApp.getOAuthToken()},muteHttpExceptions:true});
+    if(res.getResponseCode()!==200) throw Error('สร้าง PDF ไม่สำเร็จ HTTP '+res.getResponseCode());
+    return {fileName:fileName,mimeType:'application/pdf',dataBase64:Utilities.base64Encode(res.getBlob().getBytes())};
+  } finally { if(temp) temp.setTrashed(true); }
+}
+
+function setupOriginalPrintTemplatesOnce() {
+  if(typeof Drive==='undefined'||!Drive.Files) throw Error('กรุณาเปิด Advanced Google Service: Drive API ก่อน');
+  const sources={form1:'1iMx0JeKsletEOlOZYxe4WpYvM0neGm3S',form11:'1ASY2oevEAhY2MuMJvdo7rUwycFKkxpnu'};
+  const create=(id,name)=>Drive.Files.create({name:name,mimeType:'application/vnd.google-apps.presentation'},DriveApp.getFileById(id).getBlob());
+  const f1=create(sources.form1,'Print_แบบ1_แม่แบบต้นฉบับ_PDF');
+  const f11=create(sources.form11,'Print_ฉ11_แม่แบบต้นฉบับ_PDF');
+  PROP.setProperties({PRINT_FORM1_SLIDES_ID:f1.id,PRINT_FORM11_SLIDES_ID:f11.id});
+  return {form1:f1.id,form11:f11.id};
+}
+
+function approverMap_(){
+  const a=rows_('ผู้อนุมัติ').filter(x=>x.สถานะ!=='ยกเลิก');
+  const find=(terms)=>{const x=a.find(r=>terms.some(t=>String(r.บทบาท||'').indexOf(t)>=0))||{};return {name:x['ชื่อ-นามสกุล']||'',position:x.ตำแหน่ง||''}};
+  return {supervisor:find(['ผู้บังคับบัญชาชั้นต้น']),head:find(['หัวหน้าหน่วย']),check:find(['พิจารณาตรวจ']),pay:find(['พิจารณาจ่าย']),approver:find(['ผู้อนุมัติ','ผู้บริหารท้องถิ่น'])};
+}
+
+function bahtText_(n){
+  n=Math.round(Number(n||0)*100)/100; const parts=n.toFixed(2).split('.');
+  const main=readThaiNumber_(parts[0])+'บาท'; const sat=Number(parts[1]);
+  return main+(sat?readThaiNumber_(String(sat))+'สตางค์':'ถ้วน');
+}
+function readThaiNumber_(s){
+  s=String(s).replace(/^0+/,'')||'0'; if(s==='0')return 'ศูนย์';
+  if(s.length>6){const cut=s.length-6;return readThaiNumber_(s.slice(0,cut))+'ล้าน'+readThaiNumber_(s.slice(cut));}
+  const num=['ศูนย์','หนึ่ง','สอง','สาม','สี่','ห้า','หก','เจ็ด','แปด','เก้า'],unit=['','สิบ','ร้อย','พัน','หมื่น','แสน'];let out='';
+  for(let i=0;i<s.length;i++){const d=Number(s[i]),pos=s.length-i-1;if(!d)continue;if(pos===1&&d===1)out+='สิบ';else if(pos===1&&d===2)out+='ยี่สิบ';else if(pos===0&&d===1&&s.length>1)out+='เอ็ด';else out+=num[d]+unit[pos];}return out;
 }
 
 function rows_(n){const a=sheet_(n).getDataRange().getValues(),h=a.shift();return a.map(r=>Object.fromEntries(h.map((x,i)=>[x,r[i]])))}
