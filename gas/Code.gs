@@ -136,7 +136,10 @@ function printForm11_(u,id) {
   if(!m) throw Error('ไม่พบรายการ ฉ.11');
   const p=rows_('บุคลากร').find(x=>String(x.person_id)===String(m.person_id));
   if(!p) throw Error('ไม่พบข้อมูลบุคลากร');
-  const h=rows_('ประวัติการปฏิบัติงาน').filter(x=>String(x.person_id)===String(m.person_id)).slice(0,6);
+  const h=rows_('ประวัติการปฏิบัติงาน')
+    .filter(x=>String(x.person_id)===String(m.person_id))
+    .sort((a,b)=>(date_(a['วันที่เริ่ม'])||new Date(0))-(date_(b['วันที่เริ่ม'])||new Date(0)))
+    .slice(0,6);
   const pdf=makeSlidesPdf_(PROP.getProperty('PRINT_FORM11_SLIDES_ID'),form11Values_(m,p,h),'ฉ11_'+safeName_(id)+'.pdf');
   audit_(u.name,'PRINT_PDF','MONTHLY',id);
   return pdf;
@@ -178,13 +181,18 @@ function form1Values_(c,p) {
 function form11Values_(m,p,h) {
   const name=[p['คำนำหน้า'],p['ชื่อ'],p['นามสกุล']].filter(Boolean).join(' ');
   const end=m['วันที่สิ้นเดือน']||new Date();
-  const first=h.length?h.map(x=>date_(x['วันที่เริ่ม'])).filter(Boolean).sort((a,b)=>a-b)[0]:date_(p['วันที่เริ่มรับราชการ']);
+  const starts=h.map(x=>date_(x['วันที่เริ่ม'])).filter(Boolean).sort((a,b)=>a-b);
+  const first=starts[0]||date_(p['วันที่เริ่มรับราชการ']);
   const total=duration_(first,end);
-  const values={'«1»':v_(p['หน่วยบริการปัจจุบัน']),'«2»':v_(m['เดือน']),'«3»':v_(m['ปีงบประมาณ']),'«4»':v_(p['ชื่อ']),'«5»':v_(p['นามสกุล']),'«6»':v_(p.ตำแหน่ง),'«7»':v_(p['หน่วยบริการปัจจุบัน']),'«8»':v_(p.จังหวัด),'«9»':v_(p['กลุ่มพื้นที่']),'«10»':String(total.years),'«11»':String(total.months)};
+  const current=h.find(x=>String(x['สถานะปัจจุบัน'])==='ปัจจุบัน'||String(x['หน่วยบริการ'])===String(p['หน่วยบริการปัจจุบัน']))||{};
+  const unitDuration=duration_(current['วันที่เริ่ม']||p['วันที่เริ่มรับราชการ'],current['วันที่สิ้นสุด']||end);
+  const values={'«1»':v_(shortUnit_(p['หน่วยบริการปัจจุบัน'])),'«2»':v_(m['เดือน']),'«3»':v_(m['ปีงบประมาณ']),'«4»':v_(p['ชื่อ']),'«5»':v_(p['นามสกุล']),'«6»':v_(p.ตำแหน่ง),'«7»':v_(shortUnit_(p['หน่วยบริการปัจจุบัน'])),'«8»':v_(p.จังหวัด),'«9»':v_(p['กลุ่มพื้นที่']),'«10»':String(unitDuration.years),'«11»':String(unitDuration.months)};
   for(let i=0;i<6;i++){
     const x=h[i]||{},d=duration_(x['วันที่เริ่ม'],x['วันที่สิ้นสุด']||end),base=12+i*6;
-    values['«'+base+'»']=x['หน่วยบริการ']||''; values['«'+(base+1)+'»']=x.จังหวัด||''; values['«'+(base+2)+'»']=x['ระดับพื้นที่']||'';
-    values['«'+(base+3)+'»']=x['วันที่เริ่ม']?thaiDate_(x['วันที่เริ่ม']):''; values['«'+(base+4)+'»']=x['วันที่สิ้นสุด']?thaiDate_(x['วันที่สิ้นสุด']):''; values['«'+(base+5)+'»']=x['วันที่เริ่ม']?durationText_(d):'';
+    values['«'+base+'»']=shortUnit_(x['หน่วยบริการ']); values['«'+(base+1)+'»']=x.จังหวัด||''; values['«'+(base+2)+'»']=x['ระดับพื้นที่']||'';
+    values['«'+(base+3)+'»']=x['วันที่เริ่ม']?thaiDate_(x['วันที่เริ่ม']):''; values['«'+(base+4)+'»']=x['วันที่สิ้นสุด']?thaiDate_(x['วันที่สิ้นสุด']):''; values['«'+(base+5)+'»']=x['วันที่เริ่ม']?String(d.years):'';
+    values['«'+(52+i)+'»']=x['วันที่เริ่ม']?String(d.months):'';
+    values['«'+(58+i)+'»']=x['วันที่เริ่ม']?String(d.days):'';
   }
   values['«48»']=String(total.years); values['«49»']=String(total.months); values['«50»']=String(total.days); values['«51»']=name;
   return values;
@@ -213,6 +221,14 @@ function setupOriginalPrintTemplatesOnce() {
   const f11=create(sources.form11,'Print_ฉ11_แม่แบบต้นฉบับ_PDF');
   PROP.setProperties({PRINT_FORM1_SLIDES_ID:f1.id,PRINT_FORM11_SLIDES_ID:f11.id});
   return {form1:f1.id,form11:f11.id};
+}
+
+function setupForm11PrintTemplateOnce() {
+  if(typeof Drive==='undefined'||!Drive.Files) throw Error('กรุณาเปิด Advanced Google Service: Drive API ก่อน');
+  const sourceId='1ASY2oevEAhY2MuMJvdo7rUwycFKkxpnu';
+  const f=Drive.Files.create({name:'Print_ฉ11_แม่แบบต้นฉบับ_PDF',mimeType:'application/vnd.google-apps.presentation'},DriveApp.getFileById(sourceId).getBlob());
+  PROP.setProperty('PRINT_FORM11_SLIDES_ID',f.id);
+  return {form11:f.id};
 }
 
 function approverMap_(){
@@ -244,6 +260,7 @@ function out_(x){return ContentService.createTextOutput(JSON.stringify(x)).setMi
 function v_(x){return x===null||x===undefined||x===''?'-':String(x)}
 function money_(x){return Number(x||0).toLocaleString('th-TH',{minimumFractionDigits:0,maximumFractionDigits:2})}
 function safeName_(x){return String(x).replace(/[^A-Za-z0-9ก-๙_-]/g,'_')}
+function shortUnit_(x){return String(x||'').replace(/ศูนย์บริการสาธารณสุข/g,'ศบส.').replace(/โรงพยาบาลส่งเสริมสุขภาพตำบล/g,'รพ.สต.').replace(/โรงพยาบาลส่งเสริมสุขภาพ/g,'รพ.สต.')}
 function mark_(actual,label){return String(actual||'').toLowerCase().indexOf(String(label).toLowerCase())>=0?'☒':'☐'}
 function thaiNum_(n){return String(n).replace(/[0-9]/g,d=>'๐๑๒๓๔๕๖๗๘๙'[Number(d)])}
 function date_(x){if(!x)return null;const d=x instanceof Date?x:new Date(x);return isNaN(d.getTime())?null:d}
