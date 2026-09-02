@@ -249,6 +249,7 @@ function thaiNum_(n){return String(n).replace(/[0-9]/g,d=>'๐๑๒๓๔๕๖
 function date_(x){if(!x)return null;const d=x instanceof Date?x:new Date(x);return isNaN(d.getTime())?null:d}
 function thaiDate_(x){const d=date_(x);if(!d)return '-';const m=['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];return d.getDate()+' '+m[d.getMonth()]+' '+(d.getFullYear()+543)}
 function duration_(a,b){const s=date_(a),e=date_(b);if(!s||!e||e<s)return {years:0,months:0,days:0};let y=e.getFullYear()-s.getFullYear(),m=e.getMonth()-s.getMonth(),d=e.getDate()-s.getDate();if(d<0){m--;d+=new Date(e.getFullYear(),e.getMonth(),0).getDate()}if(m<0){y--;m+=12}return {years:Math.max(0,y),months:Math.max(0,m),days:Math.max(0,d)}}
+function durationText_(d){d=d||{};return Number(d.years||0)+' ปี '+Number(d.months||0)+' เดือน '+Number(d.days||0)+' วัน'}
 
 function resetAdminPasswordFromPropertyOnce(){
   const password=PROP.getProperty('TEMP_ADMIN_PASSWORD');
