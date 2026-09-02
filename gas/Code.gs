@@ -189,7 +189,7 @@ function form11Values_(m,p,h) {
   const values={'«1»':v_(shortUnit_(p['หน่วยบริการปัจจุบัน'])),'«2»':v_(m['เดือน']),'«3»':v_(m['ปีงบประมาณ']),'«4»':v_(p['ชื่อ']),'«5»':v_(p['นามสกุล']),'«6»':v_(p.ตำแหน่ง),'«7»':v_(shortUnit_(p['หน่วยบริการปัจจุบัน'])),'«8»':v_(p.จังหวัด),'«9»':v_(p['กลุ่มพื้นที่']),'«10»':String(unitDuration.years),'«11»':String(unitDuration.months)};
   for(let i=0;i<6;i++){
     const x=h[i]||{},d=duration_(x['วันที่เริ่ม'],x['วันที่สิ้นสุด']||end),base=12+i*6;
-    values['«'+base+'»']=shortUnit_(x['หน่วยบริการ']); values['«'+(base+1)+'»']=x.จังหวัด||''; values['«'+(base+2)+'»']=x['ระดับพื้นที่']||'';
+    values['«'+base+'»']=shortHistoryUnit_(x['หน่วยบริการ']); values['«'+(base+1)+'»']=x.จังหวัด||''; values['«'+(base+2)+'»']=x['ระดับพื้นที่']||'';
     values['«'+(base+3)+'»']=x['วันที่เริ่ม']?thaiDate_(x['วันที่เริ่ม']):''; values['«'+(base+4)+'»']=x['วันที่สิ้นสุด']?thaiDate_(x['วันที่สิ้นสุด']):''; values['«'+(base+5)+'»']=x['วันที่เริ่ม']?String(d.years):'';
     values['«'+(52+i)+'»']=x['วันที่เริ่ม']?String(d.months):'';
     values['«'+(58+i)+'»']=x['วันที่เริ่ม']?String(d.days):'';
@@ -219,6 +219,7 @@ function setupOriginalPrintTemplatesOnce() {
   const create=(id,name)=>Drive.Files.create({name:name,mimeType:'application/vnd.google-apps.presentation'},DriveApp.getFileById(id).getBlob());
   const f1=create(sources.form1,'Print_แบบ1_แม่แบบต้นฉบับ_PDF');
   const f11=create(sources.form11,'Print_ฉ11_แม่แบบต้นฉบับ_PDF');
+  formatForm11Template_(f11.id);
   PROP.setProperties({PRINT_FORM1_SLIDES_ID:f1.id,PRINT_FORM11_SLIDES_ID:f11.id});
   return {form1:f1.id,form11:f11.id};
 }
@@ -227,8 +228,27 @@ function setupForm11PrintTemplateOnce() {
   if(typeof Drive==='undefined'||!Drive.Files) throw Error('กรุณาเปิด Advanced Google Service: Drive API ก่อน');
   const sourceId='1ASY2oevEAhY2MuMJvdo7rUwycFKkxpnu';
   const f=Drive.Files.create({name:'Print_ฉ11_แม่แบบต้นฉบับ_PDF',mimeType:'application/vnd.google-apps.presentation'},DriveApp.getFileById(sourceId).getBlob());
+  formatForm11Template_(f.id);
   PROP.setProperty('PRINT_FORM11_SLIDES_ID',f.id);
   return {form11:f.id};
+}
+
+function formatForm11Template_(presentationId) {
+  const sizes={1:12,2:15,3:15,4:15,5:15,6:12,7:11,8:15,9:11,10:15,11:15,48:15,49:15,50:15,51:15};
+  for(let i=0;i<6;i++){
+    const base=12+i*6;
+    sizes[base]=9; sizes[base+1]=13; sizes[base+2]=10;
+    sizes[base+3]=11; sizes[base+4]=11; sizes[base+5]=15;
+    sizes[52+i]=15; sizes[58+i]=15;
+  }
+  const deck=SlidesApp.openById(presentationId);
+  deck.getSlides().forEach(slide=>slide.getPageElements().forEach(element=>{
+    if(element.getPageElementType()!==SlidesApp.PageElementType.SHAPE)return;
+    const range=element.asShape().getText(),marker=range.asString().match(/«(\d+)»/);
+    if(!marker)return;
+    range.getTextStyle().setFontFamily('Sarabun').setFontSize(sizes[Number(marker[1])]||15).setBold(false).setForegroundColor('#000000');
+  }));
+  deck.saveAndClose();
 }
 
 function approverMap_(){
@@ -261,6 +281,7 @@ function v_(x){return x===null||x===undefined||x===''?'-':String(x)}
 function money_(x){return Number(x||0).toLocaleString('th-TH',{minimumFractionDigits:0,maximumFractionDigits:2})}
 function safeName_(x){return String(x).replace(/[^A-Za-z0-9ก-๙_-]/g,'_')}
 function shortUnit_(x){return String(x||'').replace(/ศูนย์บริการสาธารณสุข/g,'ศบส.').replace(/โรงพยาบาลส่งเสริมสุขภาพตำบล/g,'รพ.สต.').replace(/โรงพยาบาลส่งเสริมสุขภาพ/g,'รพ.สต.')}
+function shortHistoryUnit_(x){return shortUnit_(x).replace(/^(รพ\.สต\.|ศบส\.)บ้าน/,'$1')}
 function mark_(actual,label){return String(actual||'').toLowerCase().indexOf(String(label).toLowerCase())>=0?'☒':'☐'}
 function thaiNum_(n){return String(n).replace(/[0-9]/g,d=>'๐๑๒๓๔๕๖๗๘๙'[Number(d)])}
 function date_(x){if(!x)return null;const d=x instanceof Date?x:new Date(x);return isNaN(d.getTime())?null:d}
